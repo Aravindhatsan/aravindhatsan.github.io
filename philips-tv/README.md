@@ -18,9 +18,10 @@ built-in JointSpace API (v6, HTTPS port 1926).
 4. **Pair once:** the TV shows a 4-digit PIN, which you type in:
 
    ```
-   python philips_tv.py pair 192.168.1.50
+   python philips_tv.py pair 192.168.1.145 --mac f4:20:15:c0:d1:4c
    ```
 
+   The IP and MAC address are shown under Settings → Network → View network settings.
    Credentials are saved in `~/.philips_tv.json`.
 
 ## Commands
@@ -32,6 +33,7 @@ python philips_tv.py volume 15     # set volume
 python philips_tv.py mute          # toggle mute
 python philips_tv.py key Home      # send any remote button (see `keys`)
 python philips_tv.py keys          # list button names
+python philips_tv.py on            # wake from standby (Wake on Wi-Fi)
 python philips_tv.py off           # standby
 python philips_tv.py remote        # interactive keyboard remote (w/a/s/d, +/-, etc.)
 ```
@@ -41,5 +43,5 @@ python philips_tv.py remote        # interactive keyboard remote (w/a/s/d, +/-, 
 - **"Could not reach the TV"**: the TV must be on (not in deep standby) and on the same network.
   Check the IP address again, since routers can change it. Reserving the IP address in your router stops it changing.
 - **Pairing fails / no PIN appears**: restart the TV (unplug for 30 s) and try again.
-- **Turning the TV on** from standby isn't supported by the API on most models. Use the TV remote,
-  or enable Wake on Wi-Fi and use a Wake-on-LAN app.
+- **`on` does nothing**: enable "Wake on Wi-Fi (WoWLAN)" in the TV's network settings. It may not
+  work after the TV has been in standby for a long time (deep sleep).

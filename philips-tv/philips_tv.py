@@ -4,7 +4,7 @@
 Tested target: Philips 50PUS7009 (2024, Titan OS).
 
 Usage:
-    python philips_tv.py pair 192.168.1.50     # one time: enter the PIN shown on the TV
+    python philips_tv.py pair 192.168.1.145 --mac f4:20:15:c0:d1:4c    # one time: enter the PIN shown on the TV
     python philips_tv.py status
     python philips_tv.py volume 15
     python philips_tv.py key VolumeUp
@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import json
 import random
+import socket
 import string
 import sys
 from pathlib import Path
@@ -67,8 +68,9 @@ def load_config():
 
 
 class PhilipsTV:
-    def __init__(self, host, device_id=None, auth_key=None):
+    def __init__(self, host, device_id=None, auth_key=None, mac=None):
         self.host = host
+        self.mac = mac
         self.device_id = device_id
         self.auth_key = auth_key
         self.base = f"https://{host}:1926/{API_VERSION}/"
@@ -119,8 +121,19 @@ class PhilipsTV:
         }
         self.post("pair/grant", grant)
         CONFIG_FILE.write_text(json.dumps(
-            {"host": self.host, "device_id": self.device_id, "auth_key": self.auth_key}, indent=2))
+            {"host": self.host, "device_id": self.device_id, "auth_key": self.auth_key,
+             "mac": self.mac}, indent=2))
         print(f"Paired! Credentials saved to {CONFIG_FILE}")
+
+    def wake(self):
+        """Send a Wake-on-LAN magic packet (needs 'Wake on Wi-Fi' enabled on the TV)."""
+        if not self.mac:
+            sys.exit("No MAC address saved. Pair again with --mac <TV-MAC-address>")
+        packet = b"\xff" * 6 + bytes.fromhex(self.mac.replace(":", "").replace("-", "")) * 16
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            for _ in range(3):
+                s.sendto(packet, ("255.255.255.255", 9))
 
     def key(self, name):
         self.post("input/key", {"key": name})
@@ -156,13 +169,15 @@ def main():
     parser = argparse.ArgumentParser(description="Control a Philips Titan OS TV")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pair", help="pair with the TV (one time)")
-    p.add_argument("host", help="TV IP address, e.g. 192.168.1.50")
+    p.add_argument("host", help="TV IP address, e.g. 192.168.1.145")
+    p.add_argument("--mac", help="TV MAC address, enables the 'on' command")
     sub.add_parser("status", help="show TV info, power state and volume")
     k = sub.add_parser("key", help="send a remote-control key")
     k.add_argument("name", choices=KEYS, metavar="NAME")
     v = sub.add_parser("volume", help="show or set the volume")
     v.add_argument("level", nargs="?", type=int)
     sub.add_parser("mute", help="toggle mute")
+    sub.add_parser("on", help="wake the TV from standby (Wake-on-LAN)")
     sub.add_parser("off", help="put the TV in standby")
     sub.add_parser("keys", help="list all key names")
     sub.add_parser("remote", help="interactive keyboard remote")
@@ -170,7 +185,7 @@ def main():
 
     try:
         if args.cmd == "pair":
-            PhilipsTV(args.host).pair()
+            PhilipsTV(args.host, mac=args.mac).pair()
             return
         if args.cmd == "keys":
             print("\n".join(KEYS))
@@ -189,6 +204,9 @@ def main():
             print(tv.volume(args.level))
         elif args.cmd == "mute":
             tv.key("Mute")
+        elif args.cmd == "on":
+            tv.wake()
+            print("Wake-up signal sent")
         elif args.cmd == "off":
             tv.post("powerstate", {"powerstate": "Standby"})
         elif args.cmd == "remote":
